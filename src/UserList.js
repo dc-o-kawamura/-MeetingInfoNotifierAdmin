@@ -48,12 +48,14 @@ function UserList() {
             <div className="spinner-grow user-list-grid-loading-dot" />
           </div>
         )}
-        {users.map((user) => (
-          <React.Fragment key={user.id}>
-            <div className="user-list-grid-item">{user.name}</div>
-            <div className="user-list-grid-item">{user.emailAddress}</div>
-          </React.Fragment>
-        ))}
+        <div className="user-list-grid-item-container">
+          {users.map((user) => (
+            <React.Fragment key={user.id}>
+              <div className="user-list-grid-item">{user.name}</div>
+              <div className="user-list-grid-item">{user.emailAddress}</div>
+            </React.Fragment>
+          ))}
+        </div>
       </div>
     </div>
   );
