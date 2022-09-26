@@ -12,6 +12,8 @@ using Microsoft.Azure.Documents.Client;
 using Microsoft.Azure.Documents.Linq;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using FluentValidation;
 using MeetingInfoNotifierAdmin.Api.Entities;
 using User = MeetingInfoNotifierAdmin.Api.Entities.User;
 using MeetingInfoNotifierAdmin.Api.Queries;
@@ -20,6 +22,76 @@ namespace MeetingInfoNotifierAdmin.Api
 {
     public static class Users
     {
+
+        #region ユーザー情報を登録
+        /// <summary>
+        /// ユーザー情報を登録する。
+        /// </summary>
+        /// <param name="req">HTTPリクエスト</param>
+        /// <param name="client">CosmosDBのドキュメントクライアント</param>
+        /// <param name="log">ロガー</param>
+        /// <returns>登録したユーザー情報</returns>        
+        [FunctionName("AddUsers")]
+        public static async Task<IActionResult> AddUsers(
+            [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "Users")] HttpRequest req,
+            [CosmosDB(
+                databaseName: "meeting-info-db",
+                collectionName: "Users",
+                ConnectionStringSetting = "CosmosDbConnectionString")]IAsyncCollector<dynamic> documentsOut,
+            ILogger log)
+        {
+            log.LogInformation("C# HTTP trigger function processed a request.");
+            string message = string.Empty;
+
+            try
+            {
+
+                log.LogInformation("POST Users");
+
+                // リクエストのBODYからパラメータ取得
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                dynamic data = JsonConvert.DeserializeObject(requestBody);
+
+                // エンティティに設定
+                User user = new User()
+                {
+                    Name = data?.name,
+                    EmailAddress = data?.emailAddress
+                };
+
+                // 入力値チェックを行う
+                UserValidator validator = new UserValidator();
+                validator.ValidateAndThrow(user);
+
+                // ユーザー情報を登録
+                message = await AddUsers(documentsOut, user);
+            }
+            catch (Exception ex)
+            {
+                return new BadRequestObjectResult(ex);
+            }
+
+            return new OkObjectResult(message);
+        }
+
+        /// <summary>
+        /// ユーザー情報を登録する。
+        /// </summary>
+        /// <param name="documentsOut">CosmosDBのドキュメント</param>
+        /// <param name="user">ユーザー情報</param>
+        /// <returns>登録したユーザー情報</returns>
+        private static async Task<string> AddUsers(
+                    IAsyncCollector<dynamic> documentsOut,
+                    User user
+                    )
+        {
+            // Add a JSON document to the output container.
+            string documentItem = JsonConvert.SerializeObject(user, new JsonSerializerSettings { ContractResolver = new CamelCasePropertyNamesContractResolver() });
+            await documentsOut.AddAsync(documentItem);
+            return documentItem;
+        }
+        #endregion
+
         #region ユーザー情報一覧を取得
         /// <summary>
         /// ユーザー情報一覧を取得する。
@@ -50,8 +122,7 @@ namespace MeetingInfoNotifierAdmin.Api
                 {
                     Ids = req.Query["ids"],
                     Name = req.Query["name"],
-                    EmailAddress = req.Query["emailAddress"],
-                    UserPrincipal = req.Query["userPrincipal"]
+                    EmailAddress = req.Query["emailAddress"]
                 };
 
                 // Slackチャンネル情報を取得
